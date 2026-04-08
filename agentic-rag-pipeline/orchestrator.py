@@ -25,13 +25,13 @@ class AgentState(TypedDict):
 # LLaMA-3 via Groq for ultra-fast, low-latency reasoning. Temperature=0 ensures strictly factual responses.
 llm = ChatGroq(model="llama-3.1-8b-instant", temperature=0)
 embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
-vector_db = Chroma(persist_directory="./db", embedding_function=embeddings)
 
 # --- THE AGENTS (NODES) --
 
 
 def retriever_agent(state: AgentState):
     print("-> Agent 1 (Retriever): Searching the vector database...")
+    vector_db = Chroma(persist_directory="./db", embedding_function=embeddings)
     # Fetch the 3 most relevant chunks of text from our PDF
     docs = vector_db.similarity_search(state["question"], k=3)
     context = "\n\n".join([doc.page_content for doc in docs])
@@ -74,11 +74,20 @@ def critic_agent(state: AgentState):
         [
             (
                 "system",
-                "You are a strict senior reviewer. Check if the draft answer directly answers the question using ONLY the provided context. If it is accurate and does not hallucinate, output exactly the word: APPROVED. If it contains outside info or fails to answer, output a short sentence explaining why it failed.\n\nContext:\n{context}\n\nQuestion:\n{question}\n\nDraft Answer:\n{draft_answer}",
+                """You are a senior auditor verifying an AI's draft answer. 
+        Check if the draft answer is fully supported by the Context. 
+        
+        CRITICAL RULES:
+        1. The draft MAY make reasonable logical deductions (e.g., identifying a document as a 'resume' if it contains 'Experience' and 'Education' sections).
+        2. The draft MUST NOT invent numbers, names, or facts not present in the context.
+        
+        If the draft is logically sound and factually grounded, output exactly the word: APPROVED. 
+        If it hallucinates outside facts, output a short sentence explaining what it hallucinated.
+        
+        Context:\n{context}\n\nQuestion:\n{question}\n\nDraft Answer:\n{draft_answer}""",
             )
         ]
     )
-
     chain = prompt | llm
     response = chain.invoke(
         {

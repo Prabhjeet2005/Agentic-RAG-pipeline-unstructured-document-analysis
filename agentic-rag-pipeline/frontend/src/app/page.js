@@ -11,16 +11,36 @@ export default function Dashboard() {
 	const [activeFile, setActiveFile] = useState("sample_document.pdf");
 	const [uploadStatus, setUploadStatus] = useState("");
 
-	const handleFileUpload = (e) => {
+	const handleFileUpload = async (e) => {
 		const file = e.target.files[0];
-		if (file) {
-			setUploadStatus("Uploading & Vectorizing Document...");
-			// Simulate the API upload delay for the UI
-			setTimeout(() => {
+		if (!file) return;
+
+		setUploadStatus("Uploading & Vectorizing Document...");
+
+		// Create form data to send the file securely
+		const formData = new FormData();
+		formData.append("file", file);
+
+		try {
+			const response = await axios.post(
+				"http://127.0.0.1:8000/api/v1/ingest",
+				formData,
+				{
+					headers: {
+						"Content-Type": "multipart/form-data",
+					},
+				},
+			);
+
+			if (response.data.status === "success") {
 				setActiveFile(file.name);
 				setUploadStatus("Document Ingested Successfully.");
+				// Clear the success message after 3 seconds
 				setTimeout(() => setUploadStatus(""), 3000);
-			}, 2000);
+			}
+		} catch (err) {
+			setUploadStatus("Ingestion Failed. Check backend logs.");
+			console.error(err);
 		}
 	};
 
