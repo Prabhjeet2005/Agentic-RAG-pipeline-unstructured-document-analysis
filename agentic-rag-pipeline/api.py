@@ -1,5 +1,6 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+from fastapi.middleware.cors import CORSMiddleware
 from orchestrator import app as ai_pipeline
 
 # Initialize API
@@ -7,6 +8,15 @@ app = FastAPI(
     title="Enterprise Multi-Agent RAG API",
     description="Microservice handling document retrieval and agentic fact-checking.",
     version="1.0.0",
+)
+
+# --- CORS ---
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000"],  # Explicitly allow your Next.js frontend
+    allow_credentials=True,
+    allow_methods=["*"],  # Allows all methods, including OPTIONS
+    allow_headers=["*"],
 )
 
 
