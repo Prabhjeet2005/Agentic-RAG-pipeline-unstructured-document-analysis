@@ -34,6 +34,7 @@ os.makedirs("./data", exist_ok=True)
 
 class QueryRequest(BaseModel):
     question: str
+    thread_id: str = "default_session"
 
 
 # --- ENDPOINT 1: DYNAMIC INGESTION ---
@@ -41,12 +42,6 @@ class QueryRequest(BaseModel):
 async def ingest_document(file: UploadFile = File(...)):
     print(f"\n[API] Received file for ingestion: {file.filename}")
     try:
-        # --- Delete OLD DATABASE ---
-        # AI only remembers the "Active Document"
-        if os.path.exists("./db"):
-            shutil.rmtree("./db")
-            print("[API] Purged previous Knowledge Base.")
-
         # 1. Save the uploaded file temporarily
         file_location = f"./data/{file.filename}"
         with open(file_location, "wb+") as file_object:
@@ -61,8 +56,18 @@ async def ingest_document(file: UploadFile = File(...)):
         )
         chunks = text_splitter.split_documents(documents)
 
-        # 3. Build a fresh ChromaDB
+        # --- FIX: clear the database via Chroma API ---
         embeddings = HuggingFaceEmbeddings(model_name="all-MiniLM-L6-v2")
+
+        # Connect to existing DB and delete the old data safely
+        existing_db = Chroma(persist_directory="./db", embedding_function=embeddings)
+        try:
+            existing_db.delete_collection()
+            print("[API] Purged previous Knowledge Base gracefully.")
+        except Exception:
+            pass  # If it's the very first time, there is no collection to delete yet
+
+        # 3. Build a fresh collection
         Chroma.from_documents(
             documents=chunks, embedding=embeddings, persist_directory="./db"
         )
@@ -81,10 +86,17 @@ async def ingest_document(file: UploadFile = File(...)):
 # --- ENDPOINT 2: AGENTIC QUERY ---
 @app.post("/api/v1/ask")
 async def ask_document(req: QueryRequest):
-    print(f"\n[API] Received question: {req.question}")
+    print(f"\n[API] Received question: {req.question} (Thread: {req.thread_id})")
     try:
-        # Trigger the LangGraph multi-agent workflow
-        result = ai_pipeline.invoke({"question": req.question, "revision_count": 0})
+        # --- NEW: Pass the thread_id to the AI Pipeline ---
+        config = {"configurable": {"thread_id": req.thread_id}}
+
+        # We also need to append the conversation history conceptually,
+        # but LangGraph handles the underlying state tracking automatically via the checkpointer!
+        result = ai_pipeline.invoke(
+            {"question": req.question, "revision_count": 0},
+            config=config,  #  AI look up past memory
+        )
 
         if "final_answer" in result:
             return {

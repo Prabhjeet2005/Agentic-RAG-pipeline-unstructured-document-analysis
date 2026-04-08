@@ -11,6 +11,10 @@ export default function Dashboard() {
 	const [activeFile, setActiveFile] = useState("sample_document.pdf");
 	const [uploadStatus, setUploadStatus] = useState("");
 
+  const [threadId] = useState(() =>
+		Math.random().toString(36).substring(7),
+	);
+
 	const handleFileUpload = async (e) => {
 		const file = e.target.files[0];
 		if (!file) return;
@@ -57,6 +61,7 @@ export default function Dashboard() {
 				"http://127.0.0.1:8000/api/v1/ask",
 				{
 					question: query,
+          threadId: threadId
 				},
 			);
 

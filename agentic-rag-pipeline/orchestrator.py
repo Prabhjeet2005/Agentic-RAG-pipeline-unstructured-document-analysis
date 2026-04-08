@@ -6,6 +6,7 @@ from langchain_groq import ChatGroq
 from langchain_community.vectorstores import Chroma
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_core.prompts import ChatPromptTemplate
+from langgraph.checkpoint.memory import MemorySaver
 
 # .env file
 load_dotenv()
@@ -138,6 +139,9 @@ workflow.add_edge("Analyst", "Critic")
 workflow.add_conditional_edges(
     "Critic", route_to_revision, {"END": END, "MAX_RETRIES": END, "REVISE": "Analyst"}
 )
+
+# --- NEW: Memory Checkpointer ---
+memory = MemorySaver()
 
 # Compile the engine into an executable application
 app = workflow.compile()
